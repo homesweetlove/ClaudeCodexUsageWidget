@@ -4,19 +4,19 @@ cd /d "%~dp0"
 
 where pythonw >nul 2>nul
 if %errorlevel%==0 (
-    start "" pythonw "%~dp0usage_widget.py"
+    start "" pythonw "%~dp0launcher.py"
     exit /b 0
 )
 
 where pyw >nul 2>nul
 if %errorlevel%==0 (
-    start "" pyw -3 "%~dp0usage_widget.py"
+    start "" pyw -3 "%~dp0launcher.py"
     exit /b 0
 )
 
 where python >nul 2>nul
 if %errorlevel%==0 (
-    python "%~dp0usage_widget.py"
+    python "%~dp0launcher.py"
     exit /b %errorlevel%
 )
 
