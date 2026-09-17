@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import tkinter as tk
 
-from usage_widget import LocalUsageScanner, ProviderSnapshot, human_reset, load_config, save_config
+from usage_widget import LocalUsageScanner, ProviderSnapshot, load_config, save_config
 
 
 class CompactUsageWidget(tk.Tk):
@@ -175,7 +175,6 @@ class CompactUsageWidget(tk.Tk):
     def _pick_window(self, snapshot: ProviderSnapshot):
         if not snapshot.windows:
             return None
-        # Prefer the short/primary window because it is the most useful at a glance.
         for window in snapshot.windows:
             label = window.label.lower()
             if "5" in label or "primary" in label or "hour" in label:
@@ -225,7 +224,6 @@ class CompactUsageWidget(tk.Tk):
         height = 8
         radius = 4
 
-        # Rounded track using rectangles + end circles.
         canvas.create_rectangle(radius, 0, width - radius, height, fill=self.TRACK, outline="")
         canvas.create_oval(0, 0, height, height, fill=self.TRACK, outline="")
         canvas.create_oval(width - height, 0, width, height, fill=self.TRACK, outline="")
@@ -272,8 +270,8 @@ class CompactUsageWidget(tk.Tk):
         save_config(self.config_data)
 
     def _restore_position(self):
-        x = self.config_data.get("window_x")
-        y = self.config_data.get("window_y")
+        x = self.config_data.get("compact_window_x")
+        y = self.config_data.get("compact_window_y")
         if isinstance(x, int) and isinstance(y, int):
             self.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x}+{y}")
             return
@@ -281,7 +279,6 @@ class CompactUsageWidget(tk.Tk):
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         x = max(16, screen_w - self.WIDTH - 28)
-        # Starts around the right-side widget column's middle gap; drag once to fine-tune.
         y = max(60, min(screen_h - self.HEIGHT - 60, int(screen_h * 0.52)))
         self.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x}+{y}")
 
@@ -299,15 +296,15 @@ class CompactUsageWidget(tk.Tk):
 
     def _end_drag(self, _event):
         if self.drag_origin:
-            self.config_data["window_x"] = self.winfo_x()
-            self.config_data["window_y"] = self.winfo_y()
+            self.config_data["compact_window_x"] = self.winfo_x()
+            self.config_data["compact_window_y"] = self.winfo_y()
             save_config(self.config_data)
         self.drag_origin = None
 
     def destroy(self):
         try:
-            self.config_data["window_x"] = self.winfo_x()
-            self.config_data["window_y"] = self.winfo_y()
+            self.config_data["compact_window_x"] = self.winfo_x()
+            self.config_data["compact_window_y"] = self.winfo_y()
             save_config(self.config_data)
         except tk.TclError:
             pass
