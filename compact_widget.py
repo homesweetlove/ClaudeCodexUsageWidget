@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ctypes
+import sys
 import time
 import tkinter as tk
 
@@ -7,19 +9,24 @@ from usage_widget import LocalUsageScanner, ProviderSnapshot, load_config, save_
 
 
 class CompactUsageWidget(tk.Tk):
-    """Thin horizontal desktop widget for Claude + Codex remaining usage."""
+    """macOS/iOS-inspired horizontal usage widget for Claude + Codex."""
 
-    WIDTH = 380
-    HEIGHT = 126
+    WIDTH = 392
+    HEIGHT = 136
 
-    BG = "#0d0d0f"
-    CARD = "#151517"
-    TEXT = "#f3f3f4"
-    MUTED = "#8f8f96"
-    BORDER = "#2a2a2e"
-    TRACK = "#303035"
-    FILL = "#d7d7db"
-    FILL_LOW = "#8f8f96"
+    BG = "#141416"
+    SURFACE = "#1c1c1e"
+    SURFACE_2 = "#242426"
+    TEXT = "#f5f5f7"
+    MUTED = "#98989f"
+    DIM = "#68686f"
+    TRACK = "#343438"
+    FILL = "#f2f2f7"
+    FILL_LOW = "#8e8e93"
+    DIVIDER = "#2c2c2e"
+
+    FONT = "Segoe UI Variable Text"
+    FONT_DISPLAY = "Segoe UI Variable Display"
 
     def __init__(self):
         super().__init__()
@@ -34,9 +41,14 @@ class CompactUsageWidget(tk.Tk):
         self.overrideredirect(True)
         self.resizable(False, False)
         self.attributes("-topmost", bool(self.config_data.get("always_on_top", True)))
+        try:
+            self.attributes("-alpha", 0.975)
+        except tk.TclError:
+            pass
 
         self._build_ui()
         self.update_idletasks()
+        self._apply_windows_rounding()
         self._restore_position()
 
         self.bind("<ButtonPress-1>", self._begin_drag, add="+")
@@ -47,117 +59,143 @@ class CompactUsageWidget(tk.Tk):
 
         self.after(80, self.refresh)
 
+    def _apply_windows_rounding(self):
+        if sys.platform != "win32":
+            return
+        try:
+            hwnd = self.winfo_id()
+            DWMWA_WINDOW_CORNER_PREFERENCE = 33
+            DWMWCP_ROUND = ctypes.c_int(2)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                ctypes.byref(DWMWCP_ROUND),
+                ctypes.sizeof(DWMWCP_ROUND),
+            )
+        except Exception:
+            pass
+
     def _build_ui(self):
         shell = tk.Frame(
             self,
-            bg=self.CARD,
+            bg=self.SURFACE,
             width=self.WIDTH,
             height=self.HEIGHT,
-            highlightbackground=self.BORDER,
+            highlightbackground=self.DIVIDER,
             highlightthickness=1,
         )
         shell.pack(fill="both", expand=True)
         shell.pack_propagate(False)
 
-        header = tk.Frame(shell, bg=self.CARD, height=34)
-        header.pack(fill="x", padx=12, pady=(8, 2))
+        header = tk.Frame(shell, bg=self.SURFACE, height=38)
+        header.pack(fill="x", padx=16, pady=(9, 0))
         header.pack_propagate(False)
 
-        title_wrap = tk.Frame(header, bg=self.CARD)
-        title_wrap.pack(side="left", fill="y")
+        title_area = tk.Frame(header, bg=self.SURFACE)
+        title_area.pack(side="left", fill="y")
         tk.Label(
-            title_wrap,
-            text="AI USAGE",
-            bg=self.CARD,
+            title_area,
+            text="AI Usage",
+            bg=self.SURFACE,
             fg=self.TEXT,
-            font=("Segoe UI Semibold", 9),
+            font=(self.FONT_DISPLAY, 11, "bold"),
         ).pack(side="left", pady=(2, 0))
-        self.status_dot = tk.Label(
-            title_wrap,
-            text="  local",
-            bg=self.CARD,
-            fg=self.MUTED,
-            font=("Segoe UI", 8),
-        )
-        self.status_dot.pack(side="left", pady=(3, 0))
 
-        self.close_btn = self._tiny_button(header, "×", self.destroy)
-        self.close_btn.pack(side="right", padx=(3, 0))
-        self.pin_btn = self._tiny_button(
-            header,
+        self.status_label = tk.Label(
+            title_area,
+            text="  Local",
+            bg=self.SURFACE,
+            fg=self.DIM,
+            font=(self.FONT, 8),
+        )
+        self.status_label.pack(side="left", pady=(4, 0))
+
+        controls = tk.Frame(header, bg=self.SURFACE)
+        controls.pack(side="right")
+        self.refresh_btn = self._circle_button(controls, "↻", self.refresh)
+        self.refresh_btn.pack(side="left", padx=(0, 5))
+        self.pin_btn = self._circle_button(
+            controls,
             "●" if self.config_data.get("always_on_top", True) else "○",
             self.toggle_topmost,
         )
-        self.pin_btn.pack(side="right", padx=(3, 0))
-        self.refresh_btn = self._tiny_button(header, "↻", self.refresh)
-        self.refresh_btn.pack(side="right")
+        self.pin_btn.pack(side="left", padx=(0, 5))
+        self.close_btn = self._circle_button(controls, "×", self.destroy)
+        self.close_btn.pack(side="left")
 
-        body = tk.Frame(shell, bg=self.CARD)
-        body.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+        divider = tk.Frame(shell, bg=self.DIVIDER, height=1)
+        divider.pack(fill="x", padx=16)
+
+        body = tk.Frame(shell, bg=self.SURFACE)
+        body.pack(fill="both", expand=True, padx=16, pady=(5, 10))
 
         self._build_provider_row(body, "Claude")
         self._build_provider_row(body, "Codex")
 
-    def _tiny_button(self, parent, text, command):
+    def _circle_button(self, parent, text, command):
         return tk.Button(
             parent,
             text=text,
             command=command,
-            bg=self.CARD,
+            bg=self.SURFACE_2,
             fg=self.MUTED,
-            activebackground=self.CARD,
+            activebackground="#303033",
             activeforeground=self.TEXT,
             relief="flat",
             bd=0,
             width=2,
             height=1,
-            cursor="hand2",
-            font=("Segoe UI", 9),
-            padx=0,
+            padx=1,
             pady=0,
+            cursor="hand2",
+            font=(self.FONT, 9),
+            highlightthickness=0,
         )
 
     def _build_provider_row(self, parent, provider: str):
-        row = tk.Frame(parent, bg=self.CARD, height=36)
-        row.pack(fill="x", pady=1)
+        row = tk.Frame(parent, bg=self.SURFACE, height=39)
+        row.pack(fill="x", pady=2)
         row.pack_propagate(False)
 
-        left = tk.Frame(row, bg=self.CARD, width=62)
+        left = tk.Frame(row, bg=self.SURFACE, width=78)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
+
         tk.Label(
             left,
             text=provider,
-            bg=self.CARD,
+            bg=self.SURFACE,
             fg=self.TEXT,
-            font=("Segoe UI Semibold", 9),
-        ).pack(anchor="w", pady=(1, 0))
+            font=(self.FONT, 9, "bold"),
+        ).pack(anchor="w", pady=(2, 0))
+
         reset_label = tk.Label(
             left,
-            text="reading…",
-            bg=self.CARD,
-            fg=self.MUTED,
-            font=("Segoe UI", 7),
+            text="Reading…",
+            bg=self.SURFACE,
+            fg=self.DIM,
+            font=(self.FONT, 7),
         )
-        reset_label.pack(anchor="w")
+        reset_label.pack(anchor="w", pady=(0, 0))
 
         percent_label = tk.Label(
             row,
             text="--%",
-            bg=self.CARD,
+            bg=self.SURFACE,
             fg=self.TEXT,
-            font=("Segoe UI Semibold", 12),
+            font=(self.FONT_DISPLAY, 16, "bold"),
             width=4,
             anchor="e",
         )
-        percent_label.pack(side="right", fill="y", padx=(7, 0), pady=(6, 0))
+        percent_label.pack(side="right", fill="y", padx=(10, 0), pady=(3, 0))
 
-        bar_wrap = tk.Frame(row, bg=self.CARD)
-        bar_wrap.pack(side="left", fill="both", expand=True, padx=(5, 0))
+        bar_wrap = tk.Frame(row, bg=self.SURFACE)
+        bar_wrap.pack(side="left", fill="both", expand=True, padx=(8, 0))
+
         canvas = tk.Canvas(
             bar_wrap,
-            height=8,
-            bg=self.CARD,
+            height=10,
+            bg=self.SURFACE,
             highlightthickness=0,
             bd=0,
         )
@@ -169,7 +207,6 @@ class CompactUsageWidget(tk.Tk):
             "reset": reset_label,
             "value": None,
         }
-
         canvas.bind("<Configure>", lambda _e, p=provider: self._draw_bar(p))
 
     def _pick_window(self, snapshot: ProviderSnapshot):
@@ -184,17 +221,17 @@ class CompactUsageWidget(tk.Tk):
     @staticmethod
     def _short_reset(timestamp: float | None) -> str:
         if timestamp is None:
-            return "reset --"
+            return "Reset --"
         seconds = max(0, int(timestamp - time.time()))
         if seconds <= 0:
-            return "reset now"
+            return "Reset now"
         if seconds >= 86400:
-            return f"reset {seconds // 86400}d"
+            return f"Reset {seconds // 86400}d"
         if seconds >= 3600:
             hours = seconds // 3600
             minutes = (seconds % 3600) // 60
-            return f"reset {hours}h {minutes}m"
-        return f"reset {max(1, seconds // 60)}m"
+            return f"Reset {hours}h {minutes}m"
+        return f"Reset {max(1, seconds // 60)}m"
 
     def _render_snapshot(self, snapshot: ProviderSnapshot):
         controls = self.rows[snapshot.provider]
@@ -203,7 +240,7 @@ class CompactUsageWidget(tk.Tk):
         if window is None or window.remaining_percent is None:
             controls["value"] = None
             controls["percent"].config(text="--%", fg=self.MUTED)
-            controls["reset"].config(text="unavailable")
+            controls["reset"].config(text="Unavailable")
             self._draw_bar(snapshot.provider)
             return
 
@@ -213,34 +250,39 @@ class CompactUsageWidget(tk.Tk):
         controls["reset"].config(text=self._short_reset(window.resets_at))
         self._draw_bar(snapshot.provider)
 
+    @staticmethod
+    def _pill(canvas: tk.Canvas, x1: float, y1: float, x2: float, y2: float, fill: str):
+        height = y2 - y1
+        radius = height / 2
+        if x2 - x1 <= height:
+            canvas.create_oval(x1, y1, x2, y2, fill=fill, outline="")
+            return
+        canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline="")
+        canvas.create_oval(x1, y1, x1 + height, y2, fill=fill, outline="")
+        canvas.create_oval(x2 - height, y1, x2, y2, fill=fill, outline="")
+
     def _draw_bar(self, provider: str):
         controls = self.rows.get(provider)
         if not controls:
             return
+
         canvas: tk.Canvas = controls["canvas"]
         value = controls.get("value")
         canvas.delete("all")
-        width = max(1, canvas.winfo_width())
-        height = 8
-        radius = 4
 
-        canvas.create_rectangle(radius, 0, width - radius, height, fill=self.TRACK, outline="")
-        canvas.create_oval(0, 0, height, height, fill=self.TRACK, outline="")
-        canvas.create_oval(width - height, 0, width, height, fill=self.TRACK, outline="")
+        width = max(1, canvas.winfo_width())
+        top = 1
+        height = 8
+        self._pill(canvas, 0, top, width, top + height, self.TRACK)
 
         if value is None:
             return
 
-        fill_width = max(0, min(width, width * float(value) / 100.0))
+        fill_width = max(0.0, min(float(width), width * float(value) / 100.0))
         if fill_width <= 1:
             return
-        fill_color = self.FILL if float(value) >= 15 else self.FILL_LOW
-        if fill_width <= height:
-            canvas.create_oval(0, 0, fill_width, height, fill=fill_color, outline="")
-        else:
-            canvas.create_rectangle(radius, 0, fill_width - radius, height, fill=fill_color, outline="")
-            canvas.create_oval(0, 0, height, height, fill=fill_color, outline="")
-            canvas.create_oval(fill_width - height, 0, fill_width, height, fill=fill_color, outline="")
+        fill = self.FILL if float(value) >= 15 else self.FILL_LOW
+        self._pill(canvas, 0, top, fill_width, top + height, fill)
 
     def refresh(self):
         if self.refresh_job is not None:
@@ -250,14 +292,14 @@ class CompactUsageWidget(tk.Tk):
                 pass
             self.refresh_job = None
 
-        self.status_dot.config(text="  scanning…")
+        self.status_label.config(text="  Updating…")
         self.update_idletasks()
 
         claude = self.scanner.scan_claude()
         codex = self.scanner.scan_codex()
         self._render_snapshot(claude)
         self._render_snapshot(codex)
-        self.status_dot.config(text="  local only")
+        self.status_label.config(text="  Local only")
 
         seconds = int(self.config_data.get("refresh_seconds", 30))
         self.refresh_job = self.after(max(10, seconds) * 1000, self.refresh)
